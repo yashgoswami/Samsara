@@ -114,6 +114,23 @@ wss.on('connection', (ws) => {
           });
           break;
         }
+
+        case 'collect': {
+          // Player collected a celestial object
+          const p = players.get(id);
+          if (p && typeof msg.karma === 'number') {
+            p.data.karma += msg.karma;
+            // Broadcast the collection so all clients remove this object
+            broadcast({
+              type: 'collect',
+              playerId: id,
+              objectId: msg.objectId,
+              karma: p.data.karma,
+              change: msg.karma,
+            });
+          }
+          break;
+        }
       }
     } catch (e) {
       // Ignore malformed messages
