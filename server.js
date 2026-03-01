@@ -131,6 +131,36 @@ wss.on('connection', (ws) => {
           }
           break;
         }
+
+        case 'karma_death': {
+          // Player exploded due to negative karma
+          broadcast({
+            type: 'player_exploded',
+            id,
+          }, id);
+          break;
+        }
+
+        case 'respawn': {
+          // Player respawned with new position and hue
+          const p = players.get(id);
+          if (p) {
+            p.data.x = msg.x;
+            p.data.y = msg.y;
+            p.data.hue = msg.hue;
+            p.data.karma = 0;
+            p.data.speed = 0;
+            p.data.angle = 0;
+            broadcast({
+              type: 'player_respawn',
+              id,
+              x: msg.x,
+              y: msg.y,
+              hue: msg.hue,
+            }, id);
+          }
+          break;
+        }
       }
     } catch (e) {
       // Ignore malformed messages
