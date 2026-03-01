@@ -6,6 +6,8 @@ In a world of information overload and hyper-optimized feeds, Samsara is the opp
 
 The name **Samsara** (संसार) comes from the Sanskrit concept of the cycle of death and rebirth. In Hindu and Buddhist philosophy, every soul wanders through an infinite cycle — shaped by karma — until it reaches liberation (moksha). This app is a playful, meditative, real-time expression of that idea.
 
+Live Demo: http://samsara-production-5f8a.up.railway.app
+
 <img width="956" height="391" alt="image" src="https://github.com/user-attachments/assets/11f475f5-4afa-409b-8504-73c2d2992315" />
 
 <img width="1908" height="942" alt="Screenshot 2026-03-01 171330" src="https://github.com/user-attachments/assets/5145150e-eb5b-454e-beaa-d595e5ac7d84" />
