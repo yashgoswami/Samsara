@@ -1,0 +1,251 @@
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  cursor: none;
+}
+
+canvas#cosmos {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+/* Intro Overlay */
+#intro-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: radial-gradient(ellipse at center, rgba(15, 5, 30, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+#intro-overlay.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.intro-content {
+  text-align: center;
+  animation: fadeInUp 1s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.title {
+  font-size: 3.5rem;
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #f093fb, #f5576c, #4facfe, #00f2fe);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 5s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.subtitle {
+  font-size: 1rem;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.1em;
+}
+
+.name-input-wrapper {
+  margin-bottom: 1.5rem;
+}
+
+#name-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  text-align: center;
+  outline: none;
+  width: 280px;
+  transition: border-color 0.3s ease;
+}
+
+#name-input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+#name-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+#enter-btn {
+  display: block;
+  margin: 0 auto 1.5rem;
+  padding: 12px 40px;
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.2), rgba(79, 172, 254, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#enter-btn:hover {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.35), rgba(79, 172, 254, 0.35));
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.05em;
+}
+
+/* HUD */
+#hud {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  text-align: right;
+  pointer-events: none;
+}
+
+#hud.hidden {
+  display: none;
+}
+
+#player-count {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 4px;
+}
+
+#coordinates {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+}
+
+#minimap-container {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+#minimap {
+  display: block;
+}
+
+/* Chat */
+#chat-container {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 50;
+  width: 320px;
+}
+
+#chat-container.hidden {
+  display: none;
+}
+
+#chat-messages {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 8px 0;
+  scrollbar-width: none;
+}
+
+#chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-msg {
+  font-size: 0.8rem;
+  padding: 3px 0;
+  color: rgba(255, 255, 255, 0.6);
+  animation: chatFade 0.3s ease;
+}
+
+.chat-msg .chat-name {
+  font-weight: 600;
+}
+
+@keyframes chatFade {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#chat-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+#chat-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+#chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* Custom cursor dot */
+#cursor-dot {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -50%);
+}
+
+/* Scrollbar hiding for the page */
+::-webkit-scrollbar {
+  display: none;
+}
