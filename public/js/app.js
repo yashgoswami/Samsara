@@ -6,7 +6,7 @@
 import { Connection } from './connection.js';
 import { Camera } from './camera.js';
 import { Input } from './input.js';
-import { Avatar } from './avatar.js';
+import { Avatar, Explosion } from './avatar.js';
 import { StarField, drawGrid } from './starfield.js';
 import { Collectibles, KarmaPopup } from './collectibles.js';
 
@@ -23,7 +23,10 @@ const collectibles = new Collectibles();
 let localPlayer = null;
 const remotePlayers = new Map();
 const karmaPopups = [];
+const explosions = [];
 let localKarma = 0;
+let respawning = false;
+const KARMA_DEATH_THRESHOLD = -50;
 
 let playerName = '';
 let running = false;
@@ -180,6 +183,33 @@ connection.on('collect', (msg) => {
   collectibles.collect(msg.objectId);
 });
 
+connection.on('player_exploded', (msg) => {
+  // Another player exploded — show their explosion
+  const avatar = remotePlayers.get(msg.id);
+  if (avatar) {
+    explosions.push(new Explosion(avatar.x, avatar.y, avatar.hue));
+    remotePlayers.delete(msg.id);
+  }
+});
+
+connection.on('player_respawn', (msg) => {
+  // Another player respawned — update or recreate their avatar
+  let avatar = remotePlayers.get(msg.id);
+  if (avatar) {
+    avatar.x = msg.x;
+    avatar.y = msg.y;
+    avatar.targetX = msg.x;
+    avatar.targetY = msg.y;
+    avatar.hue = msg.hue;
+    avatar.trail = [];
+    avatar.birthTime = performance.now();
+  } else {
+    avatar = new Avatar({ id: msg.id, x: msg.x, y: msg.y, hue: msg.hue, name: '' });
+    remotePlayers.set(msg.id, avatar);
+  }
+  updatePlayerCount();
+});
+
 // ─── Input Callbacks ─────────────────────────────────────────────
 input.onZoom = (delta) => camera.zoomBy(delta);
 
@@ -256,10 +286,23 @@ function gameLoop(timestamp) {
       });
     }
 
+    // Check karma death threshold
+    if (localKarma <= KARMA_DEATH_THRESHOLD && !respawning) {
+      triggerKarmaDeath();
+    }
+
     // Update karma popups
     for (let i = karmaPopups.length - 1; i >= 0; i--) {
       karmaPopups[i].update(dt);
       if (karmaPopups[i].isDead()) karmaPopups.splice(i, 1);
+    }
+
+    // Update explosions
+    for (let i = explosions.length - 1; i >= 0; i--) {
+      explosions[i].update(dt);
+      if (explosions[i].isDead()) {
+        explosions.splice(i, 1);
+      }
     }
 
     // Network sync
@@ -276,10 +319,13 @@ function gameLoop(timestamp) {
   collectibles.draw(ctx, camera, w, h);
 
   remotePlayers.forEach(p => p.draw(ctx));
-  if (localPlayer) localPlayer.draw(ctx);
+  if (localPlayer && !respawning) localPlayer.draw(ctx);
 
   // Karma popups (world-space)
   for (const popup of karmaPopups) popup.draw(ctx);
+
+  // Explosions (world-space)
+  for (const expl of explosions) expl.draw(ctx);
 
   camera.restoreTransform(ctx);
 
@@ -314,6 +360,58 @@ function updateLocalPlayer(dt) {
     localPlayer.x += Math.cos(localPlayer.angle) * speed;
     localPlayer.y += Math.sin(localPlayer.angle) * speed;
   }
+}
+
+// ─── Karma Death & Respawn ───────────────────────────────────────
+function triggerKarmaDeath() {
+  if (!localPlayer || respawning) return;
+  respawning = true;
+
+  // Create explosion at current position
+  explosions.push(new Explosion(localPlayer.x, localPlayer.y, localPlayer.hue));
+
+  // Broadcast death to others
+  connection.send({ type: 'karma_death' });
+
+  // After explosion, respawn
+  setTimeout(() => {
+    respawnAvatar();
+  }, 2000);
+}
+
+function respawnAvatar() {
+  const spawnX = (Math.random() - 0.5) * 4000;
+  const spawnY = (Math.random() - 0.5) * 4000;
+  const newHue = Math.floor(Math.random() * 360);
+
+  localPlayer.x = spawnX;
+  localPlayer.y = spawnY;
+  localPlayer.targetX = spawnX;
+  localPlayer.targetY = spawnY;
+  localPlayer.angle = 0;
+  localPlayer.speed = 0;
+  localPlayer.hue = newHue;
+  localPlayer.trail = [];
+  localPlayer.birthTime = performance.now();
+
+  // Reset karma
+  localKarma = 0;
+
+  // Snap camera to new position
+  camera.x = spawnX;
+  camera.y = spawnY;
+  camera.targetX = spawnX;
+  camera.targetY = spawnY;
+
+  // Notify server of respawn
+  connection.send({
+    type: 'respawn',
+    x: spawnX,
+    y: spawnY,
+    hue: newHue,
+  });
+
+  respawning = false;
 }
 
 // ─── Rendering Helpers ───────────────────────────────────────────

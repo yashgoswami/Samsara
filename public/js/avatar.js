@@ -393,3 +393,126 @@ export class Avatar {
     }
   }
 }
+
+/**
+ * Explosion effect when an avatar is destroyed by negative karma
+ */
+export class Explosion {
+  constructor(x, y, hue) {
+    this.x = x;
+    this.y = y;
+    this.hue = hue;
+    this.life = 2000; // ms
+    this.age = 0;
+    this.particles = [];
+    this.rings = [];
+
+    // Generate explosion particles
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * TAU;
+      const speed = 1 + Math.random() * 4;
+      this.particles.push({
+        x: 0,
+        y: 0,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: 2 + Math.random() * 4,
+        hueOff: Math.random() * 40 - 20,
+        decay: 0.5 + Math.random() * 0.5,
+      });
+    }
+
+    // Shockwave rings
+    for (let i = 0; i < 3; i++) {
+      this.rings.push({
+        r: 0,
+        speed: 2 + i * 1.5,
+        alpha: 0.8 - i * 0.2,
+      });
+    }
+  }
+
+  update(dt) {
+    this.age += dt;
+    const t = this.age / this.life;
+
+    // Update particles
+    for (const p of this.particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.97;
+      p.vy *= 0.97;
+      p.r *= 0.995;
+    }
+
+    // Update rings
+    for (const ring of this.rings) {
+      ring.r += ring.speed;
+      ring.alpha *= 0.98;
+    }
+  }
+
+  isDead() {
+    return this.age >= this.life;
+  }
+
+  draw(ctx) {
+    const t = this.age / this.life;
+    const fade = 1 - t;
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Flash at start
+    if (t < 0.15) {
+      const flashAlpha = (1 - t / 0.15) * 0.6;
+      const flashGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 80);
+      flashGrad.addColorStop(0, `rgba(255, 255, 255, ${flashAlpha})`);
+      flashGrad.addColorStop(0.3, `hsla(${this.hue}, 90%, 70%, ${flashAlpha * 0.6})`);
+      flashGrad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(0, 0, 80, 0, TAU);
+      ctx.fillStyle = flashGrad;
+      ctx.fill();
+    }
+
+    // Shockwave rings
+    for (const ring of this.rings) {
+      if (ring.alpha < 0.01) continue;
+      ctx.beginPath();
+      ctx.arc(0, 0, ring.r, 0, TAU);
+      ctx.strokeStyle = `hsla(${this.hue}, 80%, 60%, ${ring.alpha * fade})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Debris particles
+    for (const p of this.particles) {
+      if (p.r < 0.3) continue;
+      const pAlpha = fade * p.decay;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, TAU);
+
+      const pGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      pGrad.addColorStop(0, `hsla(${this.hue + p.hueOff}, 90%, 75%, ${pAlpha})`);
+      pGrad.addColorStop(0.5, `hsla(${this.hue + p.hueOff + 30}, 80%, 55%, ${pAlpha * 0.6})`);
+      pGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = pGrad;
+      ctx.fill();
+    }
+
+    // Center ember glow
+    if (fade > 0.1) {
+      const cGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 20 * fade);
+      cGrad.addColorStop(0, `hsla(0, 80%, 50%, ${fade * 0.4})`);
+      cGrad.addColorStop(0.5, `hsla(30, 90%, 40%, ${fade * 0.2})`);
+      cGrad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(0, 0, 20 * fade, 0, TAU);
+      ctx.fillStyle = cGrad;
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
