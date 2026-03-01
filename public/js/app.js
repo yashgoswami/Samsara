@@ -8,6 +8,7 @@ import { Camera } from './camera.js';
 import { Input } from './input.js';
 import { Avatar } from './avatar.js';
 import { StarField, drawGrid } from './starfield.js';
+import { Collectibles, KarmaPopup } from './collectibles.js';
 
 // ─── State ───────────────────────────────────────────────────────
 const canvas = document.getElementById('cosmos');
@@ -17,9 +18,12 @@ const connection = new Connection();
 const camera = new Camera();
 const input = new Input(canvas);
 const starField = new StarField();
+const collectibles = new Collectibles();
 
 let localPlayer = null;
 const remotePlayers = new Map();
+const karmaPopups = [];
+let localKarma = 0;
 
 let playerName = '';
 let running = false;
@@ -114,6 +118,8 @@ connection.on('init', (msg) => {
   if (msg.starSeed) {
     starField.seed = msg.starSeed;
     starField.cache.clear();
+    collectibles.seed = msg.starSeed;
+    collectibles.cache.clear();
   }
 
   // Let server know our name and position
@@ -167,6 +173,11 @@ connection.on('chat', (msg) => {
     if (avatar) avatar.showChat(msg.message);
   }
   addChatMessage(msg.id, msg.message);
+});
+
+connection.on('collect', (msg) => {
+  // Another player collected an object — remove it for us too
+  collectibles.collect(msg.objectId);
 });
 
 // ─── Input Callbacks ─────────────────────────────────────────────
@@ -231,6 +242,26 @@ function gameLoop(timestamp) {
     localPlayer.update(dt);
     remotePlayers.forEach(p => p.update(dt));
 
+    // Collectible collision detection
+    const hits = collectibles.checkCollisions(
+      localPlayer.x, localPlayer.y, 18, camera, w, h
+    );
+    for (const obj of hits) {
+      localKarma += obj.karma;
+      karmaPopups.push(new KarmaPopup(obj.x, obj.y, obj.karma, obj.positive));
+      connection.send({
+        type: 'collect',
+        objectId: obj.id,
+        karma: obj.karma,
+      });
+    }
+
+    // Update karma popups
+    for (let i = karmaPopups.length - 1; i >= 0; i--) {
+      karmaPopups[i].update(dt);
+      if (karmaPopups[i].isDead()) karmaPopups.splice(i, 1);
+    }
+
     // Network sync
     sendPositionUpdate();
   }
@@ -241,14 +272,23 @@ function gameLoop(timestamp) {
   starField.draw(ctx, camera, w, h);
   drawGrid(ctx, camera, w, h);
 
+  // Collectible objects (between background and players)
+  collectibles.draw(ctx, camera, w, h);
+
   remotePlayers.forEach(p => p.draw(ctx));
   if (localPlayer) localPlayer.draw(ctx);
+
+  // Karma popups (world-space)
+  for (const popup of karmaPopups) popup.draw(ctx);
 
   camera.restoreTransform(ctx);
 
   // Screen-space overlays
   drawCursor(ctx);
-  if (localPlayer) updateHUD();
+  if (localPlayer) {
+    drawNearestIndicator(ctx, w, h);
+    updateHUD();
+  }
 }
 
 function updateLocalPlayer(dt) {
@@ -301,6 +341,133 @@ function drawCursor(ctx) {
   ctx.restore();
 }
 
+// ─── Nearest Avatar Direction Indicator ──────────────────────────
+function findNearestPlayer() {
+  if (!localPlayer || remotePlayers.size === 0) return null;
+
+  let nearest = null;
+  let nearestDist = Infinity;
+
+  remotePlayers.forEach(p => {
+    const dx = p.x - localPlayer.x;
+    const dy = p.y - localPlayer.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = p;
+    }
+  });
+
+  return nearest ? { player: nearest, dist: nearestDist } : null;
+}
+
+function drawNearestIndicator(ctx, w, h) {
+  const result = findNearestPlayer();
+  if (!result) return;
+
+  const { player, dist } = result;
+  const dx = player.x - localPlayer.x;
+  const dy = player.y - localPlayer.y;
+  const angle = Math.atan2(dy, dx);
+
+  // Check if the player is visible on screen
+  const screen = camera.worldToScreen(player.x, player.y, w, h);
+  const margin = 60;
+  if (screen.x > margin && screen.x < w - margin &&
+      screen.y > margin && screen.y < h - margin) {
+    return; // Player is visible, no indicator needed
+  }
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const edgePad = 50;
+
+  // Place the indicator along the edge of the screen
+  // Intersect the direction ray with the screen bounding box
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+
+  let t = Infinity;
+  if (cosA > 0) t = Math.min(t, (cx - edgePad) / cosA);
+  if (cosA < 0) t = Math.min(t, -(cx - edgePad) / cosA);
+  if (sinA > 0) t = Math.min(t, (cy - edgePad) / sinA);
+  if (sinA < 0) t = Math.min(t, -(cy - edgePad) / sinA);
+
+  const ix = cx + cosA * t;
+  const iy = cy + sinA * t;
+
+  const hue = player.hue;
+  const time = performance.now() * 0.001;
+  const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+
+  // Glow behind the arrow
+  ctx.save();
+  const glowGrad = ctx.createRadialGradient(ix, iy, 0, ix, iy, 30);
+  glowGrad.addColorStop(0, `hsla(${hue}, 80%, 70%, ${0.15 * pulse})`);
+  glowGrad.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(ix, iy, 30, 0, Math.PI * 2);
+  ctx.fillStyle = glowGrad;
+  ctx.fill();
+
+  // Arrow triangle
+  ctx.translate(ix, iy);
+  ctx.rotate(angle);
+
+  const arrowSize = 10 + 2 * pulse;
+  ctx.beginPath();
+  ctx.moveTo(arrowSize, 0);
+  ctx.lineTo(-arrowSize * 0.6, -arrowSize * 0.6);
+  ctx.lineTo(-arrowSize * 0.3, 0);
+  ctx.lineTo(-arrowSize * 0.6, arrowSize * 0.6);
+  ctx.closePath();
+
+  ctx.fillStyle = `hsla(${hue}, 75%, 70%, ${0.7 * pulse})`;
+  ctx.fill();
+  ctx.strokeStyle = `hsla(${hue}, 60%, 85%, ${0.5 * pulse})`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Distance label
+  ctx.save();
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Format distance
+  let label;
+  if (dist < 100) {
+    label = `${Math.round(dist)}`;
+  } else if (dist < 1000) {
+    label = `${Math.round(dist)}`;
+  } else {
+    label = `${(dist / 1000).toFixed(1)}k`;
+  }
+
+  // Name + distance
+  const name = player.name || 'Soul';
+  const text = `${name}  •  ${label}`;
+
+  // Position label offset from arrow
+  const labelOffX = ix - Math.cos(angle) * 22;
+  const labelOffY = iy - Math.sin(angle) * 22;
+
+  // Background pill
+  const metrics = ctx.measureText(text);
+  const pw = metrics.width + 14;
+  const ph = 18;
+  ctx.fillStyle = `rgba(0, 0, 0, 0.5)`;
+  ctx.beginPath();
+  ctx.ellipse(labelOffX, labelOffY, pw / 2, ph / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = `hsla(${hue}, 60%, 80%, 0.9)`;
+  ctx.fillText(text, labelOffX, labelOffY);
+  ctx.restore();
+}
+
 // ─── HUD ─────────────────────────────────────────────────────────
 function updateHUD() {
   if (!localPlayer) return;
@@ -309,6 +476,14 @@ function updateHUD() {
   if (coordEl) {
     coordEl.textContent = `${Math.round(localPlayer.x)}, ${Math.round(localPlayer.y)}`;
   }
+
+  const karmaEl = document.getElementById('karma-display');
+  if (karmaEl) {
+    const sign = localKarma >= 0 ? '+' : '';
+    karmaEl.textContent = `Karma: ${sign}${localKarma}`;
+    karmaEl.className = localKarma > 0 ? 'positive' : localKarma < 0 ? 'negative' : '';
+  }
+
   drawMinimap();
 }
 

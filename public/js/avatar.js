@@ -1,6 +1,5 @@
 /**
- * Avatar rendering - cosmic soul-like creatures with glowing trails
- * Inspired by Rumpetroll's tadpoles, but with a spiritual/ethereal aesthetic
+ * Avatar rendering - sleek spaceships with engine trails
  */
 
 const TAU = Math.PI * 2;
@@ -97,145 +96,256 @@ export class Avatar {
   }
 
   draw(ctx) {
-    const size = 20; // Slightly larger for visibility
+    const size = 22;
     const hue = this.hue;
     const glow = this.glowPulse;
     const age = (performance.now() - this.birthTime) * 0.001;
+    const time = performance.now() * 0.001;
 
     // Spawn animation: scale up in first 0.5s
     const spawnScale = Math.min(1, age * 2);
 
+    // --- Engine exhaust trail (world-space) ---
+    this._drawEngineTrail(ctx, size, hue, glow);
+
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // Apply spawn scale
     if (spawnScale < 1) {
       ctx.scale(spawnScale, spawnScale);
     }
 
     ctx.rotate(this.angle);
 
-    // Draw tail/trail
-    this._drawTail(ctx, size, hue, glow);
+    // --- Engine glow at the back ---
+    this._drawEngineGlow(ctx, size, hue, glow, time);
 
-    // Draw body
-    this._drawBody(ctx, size, hue, glow);
+    // --- Shield / aura ---
+    this._drawShield(ctx, size, hue, glow);
 
-    // Draw eyes
-    this._drawEyes(ctx, size);
+    // --- Ship body ---
+    this._drawShipBody(ctx, size, hue, glow);
+
+    // --- Cockpit window ---
+    this._drawCockpit(ctx, size, hue);
+
+    // --- Wing detail lines ---
+    this._drawWingDetails(ctx, size, hue);
 
     ctx.restore();
 
-    // Draw name & chat bubble (not rotated, in world space)
+    // Name & chat bubble (world-space, not rotated)
     this._drawLabel(ctx, size, spawnScale);
   }
 
-  _drawTail(ctx, size, hue, glow) {
-    if (this.trail.length < 2) return;
+  _drawEngineTrail(ctx, size, hue, glow) {
+    if (this.trail.length < 2 || this.speed < 0.3) return;
 
     ctx.save();
-    // Undo rotation and translation so trail renders in world-space
-    ctx.rotate(-this.angle);
-    ctx.translate(-this.x, -this.y);
 
-    for (let i = 1; i < this.trail.length; i++) {
-      const t = i / this.trail.length;
-      const alpha = (1 - t) * 0.5 * glow;
-      const r = size * (1 - t) * 0.55;
+    const trailLen = Math.min(this.trail.length, Math.floor(10 + this.speed * 6));
+
+    for (let i = 1; i < trailLen; i++) {
+      const t = i / trailLen;
+      const alpha = (1 - t) * 0.45 * glow * Math.min(this.speed / 2, 1);
+      const r = size * (1 - t) * 0.25;
       const p = this.trail[i];
 
+      // Double trail for two engines
+      const perpX = Math.cos(this.angle + Math.PI / 2);
+      const perpY = Math.sin(this.angle + Math.PI / 2);
+      const spread = size * 0.3;
+
+      // Left engine trail
       ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(r, 0.5), 0, TAU);
-      ctx.fillStyle = `hsla(${hue}, 80%, 65%, ${alpha})`;
+      ctx.arc(p.x + perpX * spread, p.y + perpY * spread, Math.max(r, 0.3), 0, TAU);
+      ctx.fillStyle = `hsla(${hue + 20}, 90%, 75%, ${alpha})`;
       ctx.fill();
+
+      // Right engine trail
+      ctx.beginPath();
+      ctx.arc(p.x - perpX * spread, p.y - perpY * spread, Math.max(r, 0.3), 0, TAU);
+      ctx.fillStyle = `hsla(${hue + 20}, 90%, 75%, ${alpha})`;
+      ctx.fill();
+
+      // Center hot trail
+      if (i < trailLen * 0.4) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(r * 0.5, 0.2), 0, TAU);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+        ctx.fill();
+      }
     }
 
     ctx.restore();
   }
 
-  _drawBody(ctx, size, hue, glow) {
-    // Large outer aura glow
-    const auraGrad = ctx.createRadialGradient(0, 0, size * 0.2, 0, 0, size * 3);
-    auraGrad.addColorStop(0, `hsla(${hue}, 80%, 75%, ${0.4 * glow})`);
-    auraGrad.addColorStop(0.3, `hsla(${hue}, 70%, 60%, ${0.15 * glow})`);
-    auraGrad.addColorStop(0.7, `hsla(${hue}, 60%, 50%, ${0.03 * glow})`);
-    auraGrad.addColorStop(1, `hsla(${hue}, 60%, 50%, 0)`);
+  _drawEngineGlow(ctx, size, hue, glow, time) {
+    const flicker = 0.7 + 0.3 * Math.sin(time * 15 + this.hue);
+    const intensity = Math.min(this.speed / 2, 1) * glow * flicker;
+
+    if (intensity < 0.05) return;
+
+    const engineSpread = size * 0.3;
+
+    // Left engine flame
+    const leftGrad = ctx.createRadialGradient(-size * 0.7, -engineSpread, 0, -size * 0.7, -engineSpread, size * 0.8);
+    leftGrad.addColorStop(0, `rgba(255, 255, 255, ${intensity * 0.8})`);
+    leftGrad.addColorStop(0.2, `hsla(${hue + 30}, 100%, 75%, ${intensity * 0.6})`);
+    leftGrad.addColorStop(0.5, `hsla(${hue + 15}, 90%, 60%, ${intensity * 0.3})`);
+    leftGrad.addColorStop(1, 'transparent');
 
     ctx.beginPath();
-    ctx.arc(0, 0, size * 3, 0, TAU);
-    ctx.fillStyle = auraGrad;
+    ctx.arc(-size * 0.7, -engineSpread, size * 0.8, 0, TAU);
+    ctx.fillStyle = leftGrad;
     ctx.fill();
 
-    // Main body sphere
-    const bodyGrad = ctx.createRadialGradient(-size * 0.2, -size * 0.2, size * 0.05, 0, 0, size);
-    bodyGrad.addColorStop(0, `hsla(${hue}, 50%, 95%, 1)`);
-    bodyGrad.addColorStop(0.3, `hsla(${hue}, 70%, 75%, 0.95)`);
-    bodyGrad.addColorStop(0.7, `hsla(${hue}, 80%, 55%, 0.9)`);
-    bodyGrad.addColorStop(1, `hsla(${hue}, 85%, 40%, 0.7)`);
+    // Right engine flame
+    const rightGrad = ctx.createRadialGradient(-size * 0.7, engineSpread, 0, -size * 0.7, engineSpread, size * 0.8);
+    rightGrad.addColorStop(0, `rgba(255, 255, 255, ${intensity * 0.8})`);
+    rightGrad.addColorStop(0.2, `hsla(${hue + 30}, 100%, 75%, ${intensity * 0.6})`);
+    rightGrad.addColorStop(0.5, `hsla(${hue + 15}, 90%, 60%, ${intensity * 0.3})`);
+    rightGrad.addColorStop(1, 'transparent');
 
     ctx.beginPath();
-    ctx.arc(0, 0, size, 0, TAU);
-    ctx.fillStyle = bodyGrad;
+    ctx.arc(-size * 0.7, engineSpread, size * 0.8, 0, TAU);
+    ctx.fillStyle = rightGrad;
     ctx.fill();
+  }
 
-    // Specular highlight
-    const shineGrad = ctx.createRadialGradient(-size * 0.3, -size * 0.35, 0, -size * 0.15, -size * 0.15, size * 0.55);
-    shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.65)');
-    shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  _drawShield(ctx, size, hue, glow) {
+    // Subtle shield aura (more visible for local player)
+    const shieldAlpha = this.isLocal ? 0.08 * glow : 0.04 * glow;
+
+    const shieldGrad = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 2.5);
+    shieldGrad.addColorStop(0, `hsla(${hue}, 70%, 70%, ${shieldAlpha})`);
+    shieldGrad.addColorStop(0.6, `hsla(${hue}, 60%, 60%, ${shieldAlpha * 0.4})`);
+    shieldGrad.addColorStop(1, 'transparent');
 
     ctx.beginPath();
-    ctx.arc(0, 0, size, 0, TAU);
-    ctx.fillStyle = shineGrad;
+    ctx.arc(0, 0, size * 2.5, 0, TAU);
+    ctx.fillStyle = shieldGrad;
     ctx.fill();
 
-    // Subtle ring around local player for easier identification
+    // Local player ring
     if (this.isLocal) {
       ctx.beginPath();
-      ctx.arc(0, 0, size + 4, 0, TAU);
-      ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${0.25 * glow})`;
-      ctx.lineWidth = 1.5;
+      ctx.arc(0, 0, size * 1.4, 0, TAU);
+      ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${0.12 * glow})`;
+      ctx.lineWidth = 0.8;
       ctx.stroke();
     }
   }
 
-  _drawEyes(ctx, size) {
-    const eyeSpread = size * 0.35;
-    const eyeForward = size * 0.3;
-    const eyeSize = size * 0.24;
-    const pupilSize = size * 0.13;
-
-    // Left eye
+  _drawShipBody(ctx, size, hue, glow) {
+    // Ship is oriented pointing RIGHT (angle=0 means pointing right)
+    // Main hull shape: sleek arrow/dart
     ctx.beginPath();
-    ctx.arc(eyeForward, -eyeSpread, eyeSize, 0, TAU);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    // Nose
+    ctx.moveTo(size * 1.2, 0);
+    // Upper hull curve to wing
+    ctx.quadraticCurveTo(size * 0.6, -size * 0.15, size * 0.1, -size * 0.25);
+    // Upper wing
+    ctx.lineTo(-size * 0.5, -size * 0.7);
+    // Wing tip to body
+    ctx.lineTo(-size * 0.7, -size * 0.5);
+    // Back of ship upper
+    ctx.lineTo(-size * 0.6, -size * 0.2);
+    // Engine notch
+    ctx.lineTo(-size * 0.8, -size * 0.15);
+    ctx.lineTo(-size * 0.8, size * 0.15);
+    ctx.lineTo(-size * 0.6, size * 0.2);
+    // Back of ship lower
+    ctx.lineTo(-size * 0.7, size * 0.5);
+    // Lower wing
+    ctx.lineTo(-size * 0.5, size * 0.7);
+    // Lower hull curve
+    ctx.lineTo(size * 0.1, size * 0.25);
+    ctx.quadraticCurveTo(size * 0.6, size * 0.15, size * 1.2, 0);
+    ctx.closePath();
+
+    // Hull gradient
+    const hullGrad = ctx.createLinearGradient(0, -size * 0.7, 0, size * 0.7);
+    hullGrad.addColorStop(0, `hsla(${hue}, 40%, 75%, 0.95)`);
+    hullGrad.addColorStop(0.35, `hsla(${hue}, 55%, 55%, 0.95)`);
+    hullGrad.addColorStop(0.5, `hsla(${hue}, 60%, 45%, 0.9)`);
+    hullGrad.addColorStop(0.65, `hsla(${hue}, 55%, 55%, 0.95)`);
+    hullGrad.addColorStop(1, `hsla(${hue}, 40%, 75%, 0.95)`);
+
+    ctx.fillStyle = hullGrad;
+    ctx.fill();
+
+    // Hull edge highlight
+    ctx.strokeStyle = `hsla(${hue}, 50%, 80%, 0.5)`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Top specular shine along the center ridge
+    ctx.beginPath();
+    ctx.moveTo(size * 1.1, 0);
+    ctx.quadraticCurveTo(size * 0.3, -size * 0.08, -size * 0.5, 0);
+    ctx.quadraticCurveTo(size * 0.3, size * 0.02, size * 1.1, 0);
+    ctx.closePath();
+
+    const shineGrad = ctx.createLinearGradient(0, -size * 0.1, 0, size * 0.05);
+    shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+    shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = shineGrad;
+    ctx.fill();
+  }
+
+  _drawCockpit(ctx, size, hue) {
+    // Cockpit window — a rounded elongated shape near the nose
+    ctx.beginPath();
+    ctx.ellipse(size * 0.45, 0, size * 0.3, size * 0.12, 0, 0, TAU);
+
+    const cockpitGrad = ctx.createRadialGradient(
+      size * 0.4, -size * 0.03, 0,
+      size * 0.45, 0, size * 0.3
+    );
+    cockpitGrad.addColorStop(0, 'rgba(180, 220, 255, 0.9)');
+    cockpitGrad.addColorStop(0.5, `hsla(${hue + 180}, 60%, 55%, 0.7)`);
+    cockpitGrad.addColorStop(1, `hsla(${hue + 200}, 50%, 30%, 0.5)`);
+
+    ctx.fillStyle = cockpitGrad;
+    ctx.fill();
+
+    // Cockpit rim
+    ctx.strokeStyle = `hsla(${hue}, 30%, 80%, 0.4)`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  _drawWingDetails(ctx, size, hue) {
+    ctx.save();
+    ctx.strokeStyle = `hsla(${hue}, 40%, 70%, 0.25)`;
+    ctx.lineWidth = 0.5;
+
+    // Wing stripes - upper
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.1, -size * 0.28);
+    ctx.lineTo(-size * 0.55, -size * 0.62);
+    ctx.stroke();
+
+    // Wing stripes - lower
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.1, size * 0.28);
+    ctx.lineTo(-size * 0.55, size * 0.62);
+    ctx.stroke();
+
+    // Engine ports (small circles)
+    const engineY = size * 0.3;
+    ctx.fillStyle = `hsla(${hue + 20}, 60%, 50%, 0.5)`;
+
+    ctx.beginPath();
+    ctx.arc(-size * 0.75, -engineY, size * 0.08, 0, TAU);
     ctx.fill();
 
     ctx.beginPath();
-    ctx.arc(eyeForward + pupilSize * 0.35, -eyeSpread, pupilSize, 0, TAU);
-    ctx.fillStyle = 'rgba(15, 15, 35, 0.95)';
+    ctx.arc(-size * 0.75, engineY, size * 0.08, 0, TAU);
     ctx.fill();
 
-    // Tiny eye highlight
-    ctx.beginPath();
-    ctx.arc(eyeForward + pupilSize * 0.1, -eyeSpread - pupilSize * 0.3, pupilSize * 0.3, 0, TAU);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fill();
-
-    // Right eye
-    ctx.beginPath();
-    ctx.arc(eyeForward, eyeSpread, eyeSize, 0, TAU);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(eyeForward + pupilSize * 0.35, eyeSpread, pupilSize, 0, TAU);
-    ctx.fillStyle = 'rgba(15, 15, 35, 0.95)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(eyeForward + pupilSize * 0.1, eyeSpread - pupilSize * 0.3, pupilSize * 0.3, 0, TAU);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fill();
+    ctx.restore();
   }
 
   _drawLabel(ctx, size, scale) {
@@ -248,7 +358,7 @@ export class Avatar {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = `hsla(${this.hue}, 60%, 80%, 0.8)`;
-      ctx.fillText(this.name, this.x, this.y - size - 12);
+      ctx.fillText(this.name, this.x, this.y - size - 18);
       ctx.restore();
     }
 

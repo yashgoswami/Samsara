@@ -153,6 +153,25 @@ canvas#cosmos {
   margin-bottom: 4px;
 }
 
+#karma-display {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 4px;
+  letter-spacing: 0.05em;
+  transition: color 0.3s ease;
+}
+
+#karma-display.positive {
+  color: rgba(120, 255, 160, 0.8);
+  text-shadow: 0 0 8px rgba(120, 255, 160, 0.3);
+}
+
+#karma-display.negative {
+  color: rgba(255, 100, 100, 0.8);
+  text-shadow: 0 0 8px rgba(255, 100, 100, 0.3);
+}
+
 #coordinates {
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.25);
