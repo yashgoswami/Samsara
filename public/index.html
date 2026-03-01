@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Samsara</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <canvas id="cosmos"></canvas>
+
+  <!-- Intro overlay -->
+  <div id="intro-overlay">
+    <div class="intro-content">
+      <h1 class="title">स Samsara</h1>
+      <p class="subtitle">An infinite cosmos of wandering souls</p>
+      <div class="name-input-wrapper">
+        <input type="text" id="name-input" placeholder="Enter your name..." maxlength="20" autocomplete="off" spellcheck="false">
+      </div>
+      <button id="enter-btn">Enter the Cosmos</button>
+      <p class="hint">Move with your mouse or touch. Scroll to zoom.</p>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="player-count">Souls: 1</div>
+    <div id="coordinates">0, 0</div>
+    <div id="minimap-container">
+      <canvas id="minimap" width="150" height="150"></canvas>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div id="chat-container" class="hidden">
+    <div id="chat-messages"></div>
+    <input type="text" id="chat-input" placeholder="Press Enter to chat..." maxlength="140" autocomplete="off" spellcheck="false">
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
