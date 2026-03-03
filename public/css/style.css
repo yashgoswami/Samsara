@@ -36,6 +36,7 @@ canvas#cosmos {
   z-index: 100;
   background: radial-gradient(ellipse at center, rgba(15, 5, 30, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);
   transition: opacity 0.8s ease, visibility 0.8s ease;
+  cursor: default;
 }
 
 #intro-overlay.fade-out {
@@ -127,6 +128,12 @@ canvas#cosmos {
   transform: translateY(-1px);
 }
 
+#intro-visualizer {
+  display: block;
+  margin: 1rem auto 0.6rem;
+  opacity: 0.7;
+}
+
 .hint {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.3);
@@ -138,7 +145,7 @@ canvas#cosmos {
   position: fixed;
   top: 18px;
   left: 18px;
-  z-index: 60;
+  z-index: 110;
   font-size: 0.8rem;
   font-weight: 400;
   letter-spacing: 0.1em;
@@ -170,6 +177,8 @@ canvas#cosmos {
   -webkit-backdrop-filter: blur(6px);
   animation: aboutFadeIn 0.4s ease;
   cursor: auto;
+  overflow-y: auto;
+  padding: 2rem 1rem;
 }
 
 #about-overlay.hidden {
@@ -184,11 +193,31 @@ canvas#cosmos {
 .about-box {
   position: relative;
   max-width: 520px;
+  max-height: 85vh;
+  overflow-y: scroll;
+  margin: auto;
   padding: 2.5rem 2.5rem 2rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   text-align: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 120, 255, 0.45) rgba(255, 255, 255, 0.05);
+}
+
+.about-box::-webkit-scrollbar {
+  width: 6px;
+}
+.about-box::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+.about-box::-webkit-scrollbar-thumb {
+  background: rgba(180, 120, 255, 0.45);
+  border-radius: 3px;
+}
+.about-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 120, 255, 0.7);
 }
 
 .about-box p {
@@ -207,6 +236,26 @@ canvas#cosmos {
 .about-box em {
   color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+}
+
+.about-credit {
+  margin-top: 1.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+}
+
+.about-credit a {
+  color: rgba(160, 200, 255, 0.75);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.about-credit a:hover {
+  color: #fff;
+  text-decoration: underline;
 }
 
 .about-title {
