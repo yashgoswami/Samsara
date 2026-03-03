@@ -10,6 +10,8 @@ import { Avatar, Explosion } from './avatar.js';
 import { StarField, drawGrid } from './starfield.js';
 import { Collectibles, KarmaPopup } from './collectibles.js';
 import { AmbientMusic } from './ambient.js';
+import { SpaceObjectLayer, LANDMARK_EARTH, LANDMARK_SUN } from './spaceObjects.js';
+import { HazardManager } from './hazards.js';
 
 // ─── State ───────────────────────────────────────────────────────
 const canvas = document.getElementById('cosmos');
@@ -21,6 +23,8 @@ const input = new Input(canvas);
 const starField = new StarField();
 const collectibles = new Collectibles();
 const ambientMusic = new AmbientMusic();
+const spaceObjects = new SpaceObjectLayer();
+const hazardManager = new HazardManager();
 
 let localPlayer = null;
 const remotePlayers = new Map();
@@ -54,11 +58,34 @@ const enterBtn = document.getElementById('enter-btn');
 const nameInput = document.getElementById('name-input');
 const hud = document.getElementById('hud');
 const chatContainer = document.getElementById('chat-container');
+const introVizCanvas = document.getElementById('intro-visualizer');
+const introVizCtx = introVizCanvas.getContext('2d');
 
 enterBtn.addEventListener('click', startGame);
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') startGame();
 });
+
+// Start ambient music on first interaction with the login page itself
+// (click/focus anywhere on intro overlay satisfies browser autoplay policy)
+let introVizLoop = null;
+function startMusicEarly() {
+  ambientMusic.start();
+  // Start a mini animation loop to render the intro visualizer before the game loop runs
+  if (!introVizLoop) {
+    (function tickIntroViz() {
+      introVizLoop = requestAnimationFrame(tickIntroViz);
+      if (introVizCanvas.offsetParent !== null) {
+        _renderVisualizerOnCtx(introVizCtx, introVizCanvas.width, introVizCanvas.height, 32, false);
+      }
+    })();
+  }
+  // Remove listeners once music has started
+  introOverlay.removeEventListener('click', startMusicEarly);
+  introOverlay.removeEventListener('focusin', startMusicEarly);
+}
+introOverlay.addEventListener('click', startMusicEarly);
+introOverlay.addEventListener('focusin', startMusicEarly);
 
 function startGame() {
   playerName = nameInput.value.trim() || 'Soul';
@@ -66,6 +93,9 @@ function startGame() {
   hud.classList.remove('hidden');
   chatContainer.classList.remove('hidden');
   document.body.style.cursor = 'none';
+
+  // Stop the standalone intro visualizer loop (main game loop handles it now)
+  if (introVizLoop) { cancelAnimationFrame(introVizLoop); introVizLoop = null; }
 
   // Create the local avatar IMMEDIATELY so it's visible right away
   // (doesn't wait for server connection)
@@ -76,7 +106,7 @@ function startGame() {
   running = true;
   lastTime = performance.now();
 
-  // Start ambient music (user clicked "Enter" — satisfies browser gesture requirement)
+  // Ensure music is playing (in case user hit Enter without clicking first)
   ambientMusic.start();
 }
 
@@ -128,6 +158,8 @@ connection.on('init', (msg) => {
     starField.cache.clear();
     collectibles.seed = msg.starSeed;
     collectibles.cache.clear();
+    spaceObjects.seed = msg.starSeed;
+    spaceObjects.cache.clear();
   }
 
   // Let server know our name and position
@@ -175,12 +207,13 @@ connection.on('player_leave', (msg) => {
 
 connection.on('chat', (msg) => {
   if (msg.id === localPlayer?.id) {
+    // Already shown locally in input.onChat — just show speech bubble
     localPlayer.showChat(msg.message);
   } else {
     const avatar = remotePlayers.get(msg.id);
     if (avatar) avatar.showChat(msg.message);
+    addChatMessage(msg.id, msg.message);
   }
-  addChatMessage(msg.id, msg.message);
 });
 
 connection.on('collect', (msg) => {
@@ -291,6 +324,17 @@ function gameLoop(timestamp) {
       });
     }
 
+    // ── Hazard projectiles ──
+    if (!respawning) {
+      const hazardHits = hazardManager.update(
+        dt, localPlayer.x, localPlayer.y, 18, localKarma
+      );
+      for (const h of hazardHits) {
+        localKarma += h.type.karma;
+        karmaPopups.push(new KarmaPopup(h.x, h.y, h.type.karma, false));
+      }
+    }
+
     // Check karma death threshold
     if (localKarma <= KARMA_DEATH_THRESHOLD && !respawning) {
       triggerKarmaDeath();
@@ -323,8 +367,14 @@ function gameLoop(timestamp) {
   // Collectible objects (between background and players)
   collectibles.draw(ctx, camera, w, h);
 
+  // Real space objects with trivia (behind players, above collectibles)
+  spaceObjects.draw(ctx, camera, w, h, localPlayer);
+
   remotePlayers.forEach(p => p.draw(ctx));
   if (localPlayer && !respawning) localPlayer.draw(ctx);
+
+  // Hazard projectiles (drawn above players so they're visible)
+  hazardManager.draw(ctx);
 
   // Karma popups (world-space)
   for (const popup of karmaPopups) popup.draw(ctx);
@@ -337,6 +387,7 @@ function gameLoop(timestamp) {
   // Screen-space overlays
   drawCursor(ctx);
   if (localPlayer) {
+    drawBeaconIndicators(ctx, w, h);
     drawNearestIndicator(ctx, w, h);
     updateHUD();
     drawMusicVisualizer();
@@ -376,6 +427,9 @@ function triggerKarmaDeath() {
   // Create explosion at current position
   explosions.push(new Explosion(localPlayer.x, localPlayer.y, localPlayer.hue));
 
+  // Clear hazards
+  hazardManager.clear();
+
   // Broadcast death to others
   connection.send({ type: 'karma_death' });
 
@@ -402,6 +456,9 @@ function respawnAvatar() {
 
   // Reset karma
   localKarma = 0;
+
+  // Clear hazards for fresh start
+  hazardManager.clear();
 
   // Snap camera to new position
   camera.x = spawnX;
@@ -445,32 +502,30 @@ function drawCursor(ctx) {
   ctx.restore();
 }
 
-// ─── Music Visualizer (HUD canvas) ──────────────────────────────
+// ─── Music Visualizer ────────────────────────────────────────────
 const vizCanvas = document.getElementById('music-visualizer');
 const vizCtx = vizCanvas.getContext('2d');
 
-function drawMusicVisualizer() {
-  const cw = vizCanvas.width;
-  const ch = vizCanvas.height;
-  vizCtx.clearRect(0, 0, cw, ch);
-
+function _renderVisualizerOnCtx(tCtx, cw, ch, barCount, showIcon) {
+  tCtx.clearRect(0, 0, cw, ch);
   if (!ambientMusic.playing) return;
   const freq = ambientMusic.getFrequencyData();
 
-  const barCount = 20;
+  const iconSpace = showIcon ? 16 : 0;
   const gap = 2;
-  const barW = (cw - 16 - (barCount - 1) * gap) / barCount; // 16px left for icon
+  const barW = (cw - iconSpace - (barCount - 1) * gap) / barCount;
   const maxH = ch - 4;
-  const x0 = 16;
+  const x0 = iconSpace;
   const baseline = ch - 2;
 
-  // Music note icon
-  vizCtx.globalAlpha = 0.5;
-  vizCtx.font = '11px sans-serif';
-  vizCtx.fillStyle = '#fff';
-  vizCtx.fillText('♪', 2, baseline - 4);
+  if (showIcon) {
+    tCtx.globalAlpha = 0.5;
+    tCtx.font = '11px sans-serif';
+    tCtx.fillStyle = '#fff';
+    tCtx.fillText('♪', 2, baseline - 4);
+  }
 
-  vizCtx.globalAlpha = 0.9;
+  tCtx.globalAlpha = 0.9;
   for (let i = 0; i < barCount; i++) {
     const val = freq ? freq[Math.floor(i * (freq.length / barCount))] / 255 : 0;
     const h = Math.max(2, val * maxH);
@@ -478,21 +533,126 @@ function drawMusicVisualizer() {
     const by = baseline - h;
 
     const hue = 180 + (i / barCount) * 120;
-    vizCtx.fillStyle = `hsla(${hue}, 90%, 65%, ${0.55 + val * 0.45})`;
+    tCtx.fillStyle = `hsla(${hue}, 90%, 65%, ${0.55 + val * 0.45})`;
 
-    // Rounded mini bars
     const r = Math.min(1.5, barW / 2);
-    vizCtx.beginPath();
-    vizCtx.moveTo(bx + r, by);
-    vizCtx.lineTo(bx + barW - r, by);
-    vizCtx.arcTo(bx + barW, by, bx + barW, by + r, r);
-    vizCtx.lineTo(bx + barW, baseline - r);
-    vizCtx.arcTo(bx + barW, baseline, bx + barW - r, baseline, r);
-    vizCtx.lineTo(bx + r, baseline);
-    vizCtx.arcTo(bx, baseline, bx, baseline - r, r);
-    vizCtx.lineTo(bx, by + r);
-    vizCtx.arcTo(bx, by, bx + r, by, r);
-    vizCtx.fill();
+    tCtx.beginPath();
+    tCtx.moveTo(bx + r, by);
+    tCtx.lineTo(bx + barW - r, by);
+    tCtx.arcTo(bx + barW, by, bx + barW, by + r, r);
+    tCtx.lineTo(bx + barW, baseline - r);
+    tCtx.arcTo(bx + barW, baseline, bx + barW - r, baseline, r);
+    tCtx.lineTo(bx + r, baseline);
+    tCtx.arcTo(bx, baseline, bx, baseline - r, r);
+    tCtx.lineTo(bx, by + r);
+    tCtx.arcTo(bx, by, bx + r, by, r);
+    tCtx.fill();
+  }
+}
+
+function drawMusicVisualizer() {
+  // HUD visualizer (small, with icon)
+  _renderVisualizerOnCtx(vizCtx, vizCanvas.width, vizCanvas.height, 20, true);
+  // Intro/login page visualizer (wider, no icon, visible before game starts)
+  if (introVizCanvas.offsetParent !== null) {
+    _renderVisualizerOnCtx(introVizCtx, introVizCanvas.width, introVizCanvas.height, 32, false);
+  }
+}
+
+// ─── Celestial Beacon Indicators (Earth & Sun) ──────────────────
+// Fixed world-space positions that act as navigation waypoints.
+const BEACONS = [
+  { name: 'Earth',  icon: '🌍', x: LANDMARK_EARTH.x, y: LANDMARK_EARTH.y, hue: 210, color: '#44AAFF' },
+  { name: 'Sun',    icon: '☀️',  x: LANDMARK_SUN.x,   y: LANDMARK_SUN.y,  hue: 42,  color: '#FFcc44' },
+];
+
+function drawBeaconIndicators(ctx, w, h) {
+  if (!localPlayer) return;
+
+  const time = performance.now() * 0.001;
+
+  for (const beacon of BEACONS) {
+    const dx = beacon.x - localPlayer.x;
+    const dy = beacon.y - localPlayer.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    // Don't show indicator if player is very close to the beacon
+    if (dist < 150) continue;
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const edgePad = 45;
+
+    // Intersect direction ray with screen edge
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+
+    let t = Infinity;
+    if (cosA > 0) t = Math.min(t, (cx - edgePad) / cosA);
+    if (cosA < 0) t = Math.min(t, -(cx - edgePad) / cosA);
+    if (sinA > 0) t = Math.min(t, (cy - edgePad) / sinA);
+    if (sinA < 0) t = Math.min(t, -(cy - edgePad) / sinA);
+
+    const ix = cx + cosA * t;
+    const iy = cy + sinA * t;
+
+    const pulse = 0.6 + 0.4 * Math.sin(time * 2 + beacon.hue);
+
+    // Soft glow
+    ctx.save();
+    const glow = ctx.createRadialGradient(ix, iy, 0, ix, iy, 28);
+    glow.addColorStop(0, `hsla(${beacon.hue}, 80%, 65%, ${0.18 * pulse})`);
+    glow.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(ix, iy, 28, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Arrow
+    ctx.translate(ix, iy);
+    ctx.rotate(angle);
+    const s = 9 + 2 * pulse;
+    ctx.beginPath();
+    ctx.moveTo(s, 0);
+    ctx.lineTo(-s * 0.6, -s * 0.6);
+    ctx.lineTo(-s * 0.3, 0);
+    ctx.lineTo(-s * 0.6, s * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = `hsla(${beacon.hue}, 70%, 65%, ${0.7 * pulse})`;
+    ctx.fill();
+    ctx.strokeStyle = `hsla(${beacon.hue}, 50%, 80%, ${0.4 * pulse})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.restore();
+
+    // Label (icon + name + distance)
+    ctx.save();
+    ctx.font = '11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    let distLabel;
+    if (dist < 1000) distLabel = `${Math.round(dist)}`;
+    else distLabel = `${(dist / 1000).toFixed(1)}k`;
+
+    const text = `${beacon.icon} ${beacon.name}  •  ${distLabel}`;
+    const labelX = ix - Math.cos(angle) * 24;
+    const labelY = iy - Math.sin(angle) * 24;
+
+    const metrics = ctx.measureText(text);
+    const pw = metrics.width + 14;
+    const ph = 18;
+
+    // Pill background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(labelX, labelY, pw / 2, ph / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = beacon.color;
+    ctx.fillText(text, labelX, labelY);
+    ctx.restore();
   }
 }
 
