@@ -9,6 +9,7 @@ import { Input } from './input.js';
 import { Avatar, Explosion } from './avatar.js';
 import { StarField, drawGrid } from './starfield.js';
 import { Collectibles, KarmaPopup } from './collectibles.js';
+import { AmbientMusic } from './ambient.js';
 
 // ─── State ───────────────────────────────────────────────────────
 const canvas = document.getElementById('cosmos');
@@ -19,6 +20,7 @@ const camera = new Camera();
 const input = new Input(canvas);
 const starField = new StarField();
 const collectibles = new Collectibles();
+const ambientMusic = new AmbientMusic();
 
 let localPlayer = null;
 const remotePlayers = new Map();
@@ -73,6 +75,9 @@ function startGame() {
   connection.connect();
   running = true;
   lastTime = performance.now();
+
+  // Start ambient music (user clicked "Enter" — satisfies browser gesture requirement)
+  ambientMusic.start();
 }
 
 /**
@@ -334,6 +339,7 @@ function gameLoop(timestamp) {
   if (localPlayer) {
     drawNearestIndicator(ctx, w, h);
     updateHUD();
+    drawMusicVisualizer();
   }
 }
 
@@ -437,6 +443,57 @@ function drawCursor(ctx) {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.fill();
   ctx.restore();
+}
+
+// ─── Music Visualizer (HUD canvas) ──────────────────────────────
+const vizCanvas = document.getElementById('music-visualizer');
+const vizCtx = vizCanvas.getContext('2d');
+
+function drawMusicVisualizer() {
+  const cw = vizCanvas.width;
+  const ch = vizCanvas.height;
+  vizCtx.clearRect(0, 0, cw, ch);
+
+  if (!ambientMusic.playing) return;
+  const freq = ambientMusic.getFrequencyData();
+
+  const barCount = 20;
+  const gap = 2;
+  const barW = (cw - 16 - (barCount - 1) * gap) / barCount; // 16px left for icon
+  const maxH = ch - 4;
+  const x0 = 16;
+  const baseline = ch - 2;
+
+  // Music note icon
+  vizCtx.globalAlpha = 0.5;
+  vizCtx.font = '11px sans-serif';
+  vizCtx.fillStyle = '#fff';
+  vizCtx.fillText('♪', 2, baseline - 4);
+
+  vizCtx.globalAlpha = 0.9;
+  for (let i = 0; i < barCount; i++) {
+    const val = freq ? freq[Math.floor(i * (freq.length / barCount))] / 255 : 0;
+    const h = Math.max(2, val * maxH);
+    const bx = x0 + i * (barW + gap);
+    const by = baseline - h;
+
+    const hue = 180 + (i / barCount) * 120;
+    vizCtx.fillStyle = `hsla(${hue}, 90%, 65%, ${0.55 + val * 0.45})`;
+
+    // Rounded mini bars
+    const r = Math.min(1.5, barW / 2);
+    vizCtx.beginPath();
+    vizCtx.moveTo(bx + r, by);
+    vizCtx.lineTo(bx + barW - r, by);
+    vizCtx.arcTo(bx + barW, by, bx + barW, by + r, r);
+    vizCtx.lineTo(bx + barW, baseline - r);
+    vizCtx.arcTo(bx + barW, baseline, bx + barW - r, baseline, r);
+    vizCtx.lineTo(bx + r, baseline);
+    vizCtx.arcTo(bx, baseline, bx, baseline - r, r);
+    vizCtx.lineTo(bx, by + r);
+    vizCtx.arcTo(bx, by, bx + r, by, r);
+    vizCtx.fill();
+  }
 }
 
 // ─── Nearest Avatar Direction Indicator ──────────────────────────
