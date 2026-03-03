@@ -24,8 +24,22 @@
     </div>
   </div>
 
+  <!-- About Link -->
+  <a id="about-link" href="#">About</a>
+
+  <!-- About Overlay -->
+  <div id="about-overlay" class="hidden">
+    <div class="about-box">
+      <button id="about-close">&times;</button>
+      <h2 class="about-title">स Samsara</h2>
+      <p>In a world of information overload and hyper-optimized feeds, Samsara is the opposite — an endless, procedurally generated universe where you drift through space with no objective except to exist. You stumble upon the unknown. You encounter other souls. You gather karma — or lose it. And when the weight of your choices pulls you under, you explode in a blaze of light and are reborn somewhere new, with a fresh identity and a clean slate.</p>
+      <p>The name <em>Samsara</em> (संसार) comes from the Sanskrit concept of the cycle of death and rebirth. In Hindu and Buddhist philosophy, every soul wanders through an infinite cycle — shaped by karma — until it reaches liberation (<em>moksha</em>). This app is a playful, meditative, real-time expression of that idea.</p>
+    </div>
+  </div>
+
   <!-- HUD -->
   <div id="hud" class="hidden">
+    <canvas id="music-visualizer" width="120" height="32"></canvas>
     <div id="player-count">Souls: 1</div>
     <div id="karma-display">Karma: 0</div>
     <div id="coordinates">0, 0</div>
@@ -41,5 +55,19 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
+  <script>
+    document.getElementById('about-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('about-overlay').classList.remove('hidden');
+    });
+    document.getElementById('about-close').addEventListener('click', () => {
+      document.getElementById('about-overlay').classList.add('hidden');
+    });
+    document.getElementById('about-overlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        e.currentTarget.classList.add('hidden');
+      }
+    });
+  </script>
 </body>
 </html>

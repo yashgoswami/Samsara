@@ -133,6 +133,112 @@ canvas#cosmos {
   letter-spacing: 0.05em;
 }
 
+/* About Link */
+#about-link {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 60;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+  pointer-events: auto;
+}
+
+#about-link:hover {
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 0 12px rgba(79, 172, 254, 0.4);
+}
+
+/* About Overlay */
+#about-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  background: radial-gradient(ellipse at center, rgba(15, 5, 30, 0.92) 0%, rgba(0, 0, 0, 0.96) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: aboutFadeIn 0.4s ease;
+  cursor: auto;
+}
+
+#about-overlay.hidden {
+  display: none;
+}
+
+@keyframes aboutFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.about-box {
+  position: relative;
+  max-width: 520px;
+  padding: 2.5rem 2.5rem 2rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.about-box p {
+  font-size: 0.88rem;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 1.2rem;
+  text-align: left;
+}
+
+.about-box p:last-of-type {
+  margin-bottom: 0;
+}
+
+.about-box em {
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+}
+
+.about-title {
+  font-size: 1.6rem;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  margin-bottom: 1.4rem;
+  background: linear-gradient(135deg, #f093fb, #f5576c, #4facfe, #00f2fe);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 5s ease infinite;
+}
+
+#about-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  line-height: 1;
+}
+
+#about-close:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* HUD */
 #hud {
   position: fixed;
@@ -145,6 +251,13 @@ canvas#cosmos {
 
 #hud.hidden {
   display: none;
+}
+
+#music-visualizer {
+  display: block;
+  margin-left: auto;
+  margin-bottom: 6px;
+  border-radius: 4px;
 }
 
 #player-count {
